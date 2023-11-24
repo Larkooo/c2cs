@@ -86,6 +86,11 @@ public struct {@struct.Name}
                     context, structName, field);
                 builder.Add(methodMember);
             }
+            else if (field.TypeInfo.Name.StartsWith("CArray", StringComparison.CurrentCulture))
+            {
+                builder.Add(StructPrivateField(context, field));
+                builder.Add(StructFieldCArrayProperty(context, structName, field));
+            }
             else
             {
                 var fieldMember = StructField(context, field);
@@ -134,6 +139,46 @@ public {field.TypeInfo.FullName} {field.Name};
         return member;
     }
 
+    private FieldDeclarationSyntax StructPrivateField(
+        CSharpCodeGeneratorContext context,
+        CSharpStructField field)
+    {
+        var attributesString = context.GenerateCodeAttributes(field.Attributes);
+
+        string code;
+        if (field.TypeInfo.Name == "CString")
+        {
+            code = $@"
+{attributesString}
+[FieldOffset({field.OffsetOf})] // size = {field.TypeInfo.SizeOf}
+public {field.TypeInfo.FullName} _{field.Name};
+
+private string _{field.Name}
+{{
+	get
+	{{
+        return CString.ToString(_{field.Name});
+	}}
+    set
+    {{
+        _{field.Name} = CString.FromString(value);
+    }}
+}}
+".Trim();
+        }
+        else
+        {
+            code = $@"
+{attributesString}
+[FieldOffset({field.OffsetOf})] // size = {field.TypeInfo.SizeOf}
+private {field.TypeInfo.FullName} _{field.Name};
+".Trim();
+        }
+
+        var member = context.ParseMemberCode<FieldDeclarationSyntax>(code);
+        return member;
+    }
+
     private FieldDeclarationSyntax EmitStructFieldFixedBuffer(
         CSharpCodeGeneratorContext context,
         CSharpStructField field)
@@ -147,6 +192,34 @@ public fixed byte {field.BackingFieldName}[{field.TypeInfo.SizeOf}]; // {field.T
 ".Trim();
 
         return context.ParseMemberCode<FieldDeclarationSyntax>(code);
+    }
+
+    private PropertyDeclarationSyntax StructFieldCArrayProperty(
+        CSharpCodeGeneratorContext context,
+        string structName,
+        CSharpStructField field)
+    {
+        Console.WriteLine("{0}", field.TypeInfo);
+        var elementType = field.TypeInfo.Name.Split("_", 2)[^1];
+        if (elementType == "u8")
+        {
+            elementType = "byte";
+        }
+
+        string code = $@"
+public readonly Span<{elementType}> {field.Name}
+{{
+	get
+	{{
+        fixed ({structName}*@this = &this) {{
+            var span = new Span<{elementType}>(&@this->{field.BackingFieldName}.data, (int)&@this->{field.BackingFieldName}.data_len);
+		    return span;
+        }}
+	}}
+}}
+";
+
+        return context.ParseMemberCode<PropertyDeclarationSyntax>(code);
     }
 
     private PropertyDeclarationSyntax StructFieldFixedBufferProperty(
