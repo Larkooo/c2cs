@@ -175,7 +175,6 @@ public fixed byte {field.BackingFieldName}[{field.TypeInfo.SizeOf}]; // {field.T
         string structName,
         CSharpStructField field)
     {
-        Console.WriteLine("{0}", field.TypeInfo);
         var elementType = field.TypeInfo.Name.Split("_", 2)[^1];
         elementType = elementType.TrimStart('_');
         if (elementType == "u8")
@@ -188,7 +187,7 @@ public fixed byte {field.BackingFieldName}[{field.TypeInfo.SizeOf}]; // {field.T
         }
 
         string code = $@"
-public readonly Span<{elementType}> {field.Name}
+public Span<{elementType}> {field.Name}
 {{
 	get
 	{{
@@ -197,6 +196,16 @@ public readonly Span<{elementType}> {field.Name}
 		    return span;
         }}
 	}}
+
+    set 
+    {{
+        {field.BackingFieldName} = new {field.TypeInfo.Name}();
+        {field.BackingFieldName}.data_len = (UIntPtr)value.Length;
+        fixed ({elementType}* ptr = &value[0])
+        {{
+            {field.BackingFieldName}.data = ptr;
+        }}
+    }}
 }}
 ";
 
