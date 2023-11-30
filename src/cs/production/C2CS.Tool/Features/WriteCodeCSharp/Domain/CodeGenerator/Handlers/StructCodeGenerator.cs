@@ -88,7 +88,7 @@ public struct {@struct.Name}
             }
             else if (field.TypeInfo.Name.StartsWith("CArray", StringComparison.CurrentCulture))
             {
-                builder.Add(StructPrivateField(context, field));
+                builder.Add(EmitStructCArrayField(context, field));
                 builder.Add(StructFieldCArrayProperty(context, structName, field));
             }
             else
@@ -139,41 +139,17 @@ public {field.TypeInfo.FullName} {field.Name};
         return member;
     }
 
-    private FieldDeclarationSyntax StructPrivateField(
+    private FieldDeclarationSyntax EmitStructCArrayField(
         CSharpCodeGeneratorContext context,
         CSharpStructField field)
     {
         var attributesString = context.GenerateCodeAttributes(field.Attributes);
 
-        string code;
-        if (field.TypeInfo.Name == "CString")
-        {
-            code = $@"
+        string code = $@"
 {attributesString}
 [FieldOffset({field.OffsetOf})] // size = {field.TypeInfo.SizeOf}
 public {field.TypeInfo.FullName} _{field.Name};
-
-private string _{field.Name}
-{{
-	get
-	{{
-        return CString.ToString(_{field.Name});
-	}}
-    set
-    {{
-        _{field.Name} = CString.FromString(value);
-    }}
-}}
 ".Trim();
-        }
-        else
-        {
-            code = $@"
-{attributesString}
-[FieldOffset({field.OffsetOf})] // size = {field.TypeInfo.SizeOf}
-private {field.TypeInfo.FullName} _{field.Name};
-".Trim();
-        }
 
         var member = context.ParseMemberCode<FieldDeclarationSyntax>(code);
         return member;
@@ -201,9 +177,14 @@ public fixed byte {field.BackingFieldName}[{field.TypeInfo.SizeOf}]; // {field.T
     {
         Console.WriteLine("{0}", field.TypeInfo);
         var elementType = field.TypeInfo.Name.Split("_", 2)[^1];
+        elementType = elementType.TrimStart('_');
         if (elementType == "u8")
         {
             elementType = "byte";
+        }
+        else if (elementType == "c_char")
+        {
+            elementType = "CString";
         }
 
         string code = $@"
@@ -212,7 +193,7 @@ public readonly Span<{elementType}> {field.Name}
 	get
 	{{
         fixed ({structName}*@this = &this) {{
-            var span = new Span<{elementType}>(&@this->{field.BackingFieldName}.data, (int)&@this->{field.BackingFieldName}.data_len);
+            var span = new Span<{elementType}>(@this->{field.BackingFieldName}.data, (int)@this->{field.BackingFieldName}.data_len);
 		    return span;
         }}
 	}}
