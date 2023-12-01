@@ -203,21 +203,22 @@ public fixed byte {field.BackingFieldName}[{field.TypeInfo.SizeOf}]; // {field.T
         }
 
         string code = $@"
-public Span<{elementType}> {field.Name}
+public Span<{(elementType == "CString" ? "string" : elementType)}> {field.Name}
 {{
 	get
 	{{
         fixed ({structName}*@this = &this) {{
             var span = new Span<{elementType}>(@this->{field.BackingFieldName}.data, (int)@this->{field.BackingFieldName}.data_len);
-		    return span;
+		    {(elementType == "CString" ? "return span.ToArray().Select(str => CString.ToString(str)).ToArray();" : "return span;")}
         }}
 	}}
 
     set 
     {{
+        {(elementType == "CString" ? "var strings = value.ToArray().Select(str => CString.FromString(str)).ToArray();" : string.Empty)}
         {field.BackingFieldName} = new {field.TypeInfo.Name}();
         {field.BackingFieldName}.data_len = (UIntPtr)value.Length;
-        fixed ({elementType}* ptr = &value[0])
+        fixed ({elementType}* ptr = &{(elementType == "CString" ? "strings" : "value")}[0])
         {{
             {field.BackingFieldName}.data = ptr;
         }}
