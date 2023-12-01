@@ -10,7 +10,7 @@ public sealed class CSharpStructField : CSharpNode
 {
     public readonly string BackingFieldName;
     public readonly bool IsWrapped;
-    public readonly int OffsetOf;
+    public int OffsetOf;
     public readonly CSharpTypeInfo TypeInfo;
 
     public CSharpStructField(

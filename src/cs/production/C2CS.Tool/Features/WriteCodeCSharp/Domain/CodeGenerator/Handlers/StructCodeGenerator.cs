@@ -31,6 +31,11 @@ public class StructCodeGenerator : GenerateCodeHandler<CSharpStruct>
         var members = string.Join("\n\n", memberStrings);
         var attributesString = context.GenerateCodeAttributes(@struct.Attributes);
 
+        if (@struct.Name == "Ty")
+        {
+            Console.WriteLine(members);
+        }
+
         var code = $@"
 {attributesString}
 [StructLayout(LayoutKind.Explicit, Size = {@struct.SizeOf}, Pack = {@struct.AlignOf})]
@@ -75,8 +80,19 @@ public struct {@struct.Name}
         ImmutableArray<CSharpStructField> fields,
         ImmutableArray<MemberDeclarationSyntax>.Builder builder)
     {
+        var hasTag = false;
         foreach (var field in fields)
         {
+            if (hasTag)
+            {
+                field.OffsetOf += 8;
+            }
+
+            if (field.Name == "tag")
+            {
+                hasTag = true;
+            }
+
             if (field.TypeInfo.IsArray)
             {
                 var fieldMember = EmitStructFieldFixedBuffer(context, field);
