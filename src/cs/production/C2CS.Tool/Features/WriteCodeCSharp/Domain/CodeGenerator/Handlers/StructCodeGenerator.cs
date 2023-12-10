@@ -109,7 +109,7 @@ public struct {@struct.Name}
             }
             else
             {
-                var fieldMember = StructField(context, field);
+                var fieldMember = StructField(context, structName, field);
                 builder.Add(fieldMember);
             }
         }
@@ -117,6 +117,7 @@ public struct {@struct.Name}
 
     private FieldDeclarationSyntax StructField(
         CSharpCodeGeneratorContext context,
+        string structName,
         CSharpStructField field)
     {
         var attributesString = context.GenerateCodeAttributes(field.Attributes);
@@ -138,6 +139,28 @@ public string {field.Name}
     set
     {{
         _{field.Name} = CString.FromString(value);
+    }}
+}}
+".Trim();
+        } // make a getter to dereference pointer
+        else if (!structName.StartsWith("CArray", StringComparison.CurrentCulture) && field.TypeInfo.Name.EndsWith('*'))
+        {
+            var elementType = field.TypeInfo.Name[..^1];
+            if (elementType.EndsWith('*'))
+            {
+                elementType = "nint";
+            }
+
+            code = $@"
+{attributesString}
+[FieldOffset({field.OffsetOf})] // size = {field.TypeInfo.SizeOf}
+public {field.TypeInfo.FullName} _{field.Name};
+
+public {elementType} {field.Name}
+{{
+    get
+    {{
+        return *_{field.Name};
     }}
 }}
 ".Trim();
@@ -218,7 +241,7 @@ public Span<{(elementType == "CString" ? "string" : elementType)}> {field.Name}
         {(elementType == "CString" ? "var strings = value.ToArray().Select(str => CString.FromString(str)).ToArray();" : string.Empty)}
         {field.BackingFieldName} = new {field.TypeInfo.Name}();
         {field.BackingFieldName}.data_len = (UIntPtr)value.Length;
-        fixed ({elementType}* ptr = &{(elementType == "CString" ? "strings" : "value")}[0])
+        fixed ({elementType}* ptr = {(elementType == "CString" ? "strings" : "value")})
         {{
             {field.BackingFieldName}.data = ptr;
         }}
