@@ -128,17 +128,17 @@ public struct {@struct.Name}
             code = $@"
 {attributesString}
 [FieldOffset({field.OffsetOf})] // size = {field.TypeInfo.SizeOf}
-public {field.TypeInfo.FullName} _{field.Name};
+public {field.TypeInfo.FullName} {field.Name}_;
 
 public string {field.Name}
 {{
 	get
 	{{
-        return CString.ToString(_{field.Name});
+        return CString.ToString({field.Name}_);
 	}}
     set
     {{
-        _{field.Name} = CString.FromString(value);
+        {field.Name}_ = CString.FromString(value);
     }}
 }}
 ".Trim();
@@ -214,8 +214,7 @@ public fixed byte {field.BackingFieldName}[{field.TypeInfo.SizeOf}]; // {field.T
         string structName,
         CSharpStructField field)
     {
-        var elementType = field.TypeInfo.Name.Split("_", 2)[^1];
-        elementType = elementType.TrimStart('_');
+        var elementType = field.TypeInfo.Name.Split("CArray", 2)[^1];
         if (elementType == "u8")
         {
             elementType = "byte";
@@ -303,7 +302,7 @@ public string {field.Name}
             }
 
             code = $@"
-public readonly Span<{elementType}> {field.Name}
+public Span<{elementType}> {field.Name}
 {{
 	get
 	{{
@@ -314,6 +313,16 @@ public readonly Span<{elementType}> {field.Name}
 			return span;
 		}}
 	}}
+
+    set 
+    {{
+        fixed ({structName}*@this = &this)
+        {{
+            var pointer = &@this->{field.BackingFieldName}[0];
+            var span = new Span<{elementType}>(pointer, {field.TypeInfo.ArraySizeOf});
+            value.CopyTo(span);
+        }}
+    }}
 }}
 ".Trim();
         }
