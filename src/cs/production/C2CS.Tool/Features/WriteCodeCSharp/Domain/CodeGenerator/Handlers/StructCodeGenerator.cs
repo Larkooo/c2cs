@@ -26,7 +26,7 @@ public class StructCodeGenerator : GenerateCodeHandler<CSharpStruct>
 
     private StructDeclarationSyntax Struct(CSharpCodeGeneratorContext context, CSharpStruct @struct, bool isNested)
     {
-        var memberSyntaxes = StructMembers(context, @struct.Name, @struct.Fields, @struct.NestedStructs);
+        var memberSyntaxes = StructMembers(context, @struct, @struct.Fields, @struct.NestedStructs);
         var memberStrings = memberSyntaxes.Select(x => x.ToFullString());
         var members = string.Join("\n\n", memberStrings);
         var attributesString = context.GenerateCodeAttributes(@struct.Attributes);
@@ -56,13 +56,13 @@ public struct {@struct.Name}
 
     private MemberDeclarationSyntax[] StructMembers(
         CSharpCodeGeneratorContext context,
-        string structName,
+        CSharpStruct @struct,
         ImmutableArray<CSharpStructField> fields,
         ImmutableArray<CSharpStruct> nestedStructs)
     {
         var builder = ImmutableArray.CreateBuilder<MemberDeclarationSyntax>();
 
-        StructFields(context, structName, fields, builder);
+        StructFields(context, @struct, fields, builder);
 
         foreach (var nestedStruct in nestedStructs)
         {
@@ -76,21 +76,17 @@ public struct {@struct.Name}
 
     private void StructFields(
         CSharpCodeGeneratorContext context,
-        string structName,
+        CSharpStruct @struct,
         ImmutableArray<CSharpStructField> fields,
         ImmutableArray<MemberDeclarationSyntax>.Builder builder)
     {
-        var hasTag = false;
+        var tagOffset = 0;
         foreach (var field in fields)
         {
-            if (hasTag)
-            {
-                field.OffsetOf += 8;
-            }
-
+            field.OffsetOf += tagOffset;
             if (field.Name == "tag")
             {
-                hasTag = true;
+                tagOffset += @struct.AlignOf;
             }
 
             if (field.TypeInfo.IsArray)
@@ -99,17 +95,17 @@ public struct {@struct.Name}
                 builder.Add(fieldMember);
 
                 var methodMember = StructFieldFixedBufferProperty(
-                    context, structName, field);
+                    context, @struct.Name, field);
                 builder.Add(methodMember);
             }
             else if (field.TypeInfo.Name.StartsWith("CArray", StringComparison.CurrentCulture))
             {
                 builder.Add(EmitStructCArrayField(context, field));
-                builder.Add(StructFieldCArrayProperty(context, structName, field));
+                builder.Add(StructFieldCArrayProperty(context, @struct.Name, field));
             }
             else
             {
-                var fieldMember = StructField(context, structName, field);
+                var fieldMember = StructField(context, @struct.Name, field);
                 builder.Add(fieldMember);
             }
         }
@@ -235,7 +231,7 @@ public Span<{(elementType == "CString" ? "string" : elementType)}> {field.Name}
         }}
 	}}
 
-    set 
+    set
     {{
         {(elementType == "CString" ? "var strings = value.ToArray().Select(str => CString.FromString(str)).ToArray();" : string.Empty)}
         {field.BackingFieldName} = new {field.TypeInfo.Name}();
@@ -314,7 +310,7 @@ public Span<{elementType}> {field.Name}
 		}}
 	}}
 
-    set 
+    set
     {{
         fixed ({structName}*@this = &this)
         {{
