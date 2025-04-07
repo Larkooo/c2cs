@@ -103,7 +103,7 @@ public struct {@struct.Name}
                 builder.Add(EmitStructCArrayField(context, field));
                 builder.Add(StructFieldCArrayProperty(context, @struct.Name, field));
             }
-            else
+            else if (!field.TypeInfo.Name.Contains("ANONYMOUS", StringComparison.OrdinalIgnoreCase))
             {
                 var fieldMember = StructField(context, @struct.Name, field);
                 builder.Add(fieldMember);
