@@ -31,11 +31,6 @@ public class StructCodeGenerator : GenerateCodeHandler<CSharpStruct>
         var members = string.Join("\n\n", memberStrings);
         var attributesString = context.GenerateCodeAttributes(@struct.Attributes);
 
-        if (@struct.Name == "Ty")
-        {
-            Console.WriteLine(members);
-        }
-
         var code = $@"
 {attributesString}
 [StructLayout(LayoutKind.Explicit, Size = {@struct.SizeOf}, Pack = {@struct.AlignOf})]
